@@ -1,0 +1,152 @@
+<html>
+    <head>
+<style>
+header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: #333;
+    color: #fff;
+    padding: 10px;
+}
+#reward_passives {
+    margin-top: 150px;
+}
+.recipe_item {
+	min-height: 100px;
+	display: inline-flex;
+	align-items: center;
+	width: 95%;
+	border: 1px solid gray;
+	padding: 10px;
+}
+.recipe_list {
+}
+
+</style>
+<body>
+	<header id="oil_list">
+	</header>
+	<div id="reward_passives">
+	</div>
+</body>
+<script type="text/javascript">
+	getOils(document.getElementById('oil_list'));
+	getRecipes(document.getElementById('reward_passives'));
+
+	async function getOils(parent) {
+    	const response = await fetch("http://localhost:9090/oils");
+    	const oils = await response.json();
+    	const content = oils['oils'];
+    	for(var oil in content) {
+    		var span = document.createElement('span');
+			span.setAttribute('id', content[oil].name.replace(/ /g,"_"));
+			span.setAttribute('onclick', 'onCheckClick(this)');
+    		var img = document.createElement('img');
+			img.setAttribute('src', content[oil].image_src);
+    		var chk = document.createElement('input');
+    		chk.setAttribute('type', 'checkbox');
+
+			//FIXME override checkbox click (currently double-clicks since span counts the click too)
+			span.appendChild(img);
+			span.appendChild(chk);
+			parent.appendChild(span);
+    	}
+	}
+	//get recipes and don't populate (since nothing is checked)
+	async function getRecipes(parent) {
+		const response = await fetch("http://localhost:9090/recipes");
+		const recipes = await response.json();
+		const content = recipes['recipes'];
+		for(var recipe in content) {
+			<!-- create row of recipe | image | description -->
+			var recipeId = content[recipe].reward_name.replace(/ /g,"_");
+			var span = document.createElement('span');
+			span.setAttribute('id', recipeId);
+			span.setAttribute('class', 'recipe_item');
+			//span.style.display = 'none';
+			span.style.visibility = 'hidden';
+			var recipe_span = document.createElement('span');
+			recipe_span.setAttribute('class', 'recipe_list');
+			content[recipe].requires.forEach(function(oilname, i) {
+				//FIXME blank oil names when oil unused
+				if (oilname == 'Â' || oilname.length == 0) {
+					return;
+				}
+				var img = document.createElement('img');
+				img.setAttribute('class', oilname.replace(/ /g,"_") + ' recipe_oil');
+				img.setAttribute('src', 'assets/' + oilname.replace(/ /g,"_") + '.png');
+				recipe_span.appendChild(img);
+			});
+			var img = document.createElement('img');
+			img.setAttribute('src', 'assets/' + recipeId + '.png');
+			var p = document.createTextNode(content[recipe].reward_details);
+
+			span.appendChild(recipe_span);
+			span.appendChild(img);
+			span.appendChild(p);
+			parent.appendChild(span);
+			parent.appendChild(document.createElement('br'));
+		}
+	}
+
+	async function addOil(oil_id) {
+		const recipes = document.querySelectorAll('.recipe_item, span[style="display: none;"]');
+		const checks = document.querySelectorAll('input[type="checkbox"]:checked')
+		if(recipes.length === 0) {
+			return;
+		}
+		recipes.forEach(function(value, i) {
+			const requires = value.querySelectorAll('.recipe_oil');
+			let requiredCount = requires.length;
+			let foundOils = 0;
+			requires.forEach(function(oil, j) {
+				if(foundOils === requiredCount) {
+					return;
+				}
+				checks.forEach(function(chk, k) {
+					if(chk.parentNode.id + ' recipe_oil' === oil.className) {
+						foundOils++;
+						return;
+					}
+				});
+			});
+			if(foundOils === requiredCount) {
+				console.log("displaying " + value.id);
+				//value.style.display = "block";
+				value.style.visibility = "visible";
+			} else {
+				return;
+			}
+		});
+	}
+	async function removeOil(oil_id) {
+		const recipes = document.querySelectorAll('.recipe_item:not([style="display: none;"])');
+		recipes.forEach(function (value, i) {
+			const requires = value.querySelectorAll('.recipe_oil');
+			requires.forEach(function(oil, i) {
+				if(oil.className === oil_id + ' recipe_oil') {
+					//value.style.display = "none";
+					value.style.visibility = "hidden";
+					console.log('removing reward:');
+					console.log(value);
+				}
+			});
+		});
+	}
+
+	function onCheckClick(oilbox) {
+		const chk = oilbox.getElementsByTagName('input')[0];
+		if (chk.checked === true) {
+			console.log('removing recipes');
+			removeOil(oilbox.id);
+			chk.checked = false;
+		} else if (chk.checked === false) {
+			console.log('adding recipes');
+			chk.checked = true;
+			addOil(oilbox.id);
+		}
+	}
+</script>
+</html>
